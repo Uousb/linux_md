@@ -1156,11 +1156,11 @@ mdadm --zero-superblock /dev/sda	#删除raid信息
 
 策略与规则链：iptables把用于火过滤流量的策略条目称之为规则，多条规则可以组成一个规则链，而规则链则依据数据包处理位置的不同进行分类，如下
 
-> + 在进行路由选择前处理数据包（PREROUTING）
-> + 处理流入的数据包（INPUT）
-> + 处理流出的数据包（OUTPUT）
-> + 处理转发的数据包（FORWARD）
-> + 在进行路由选择后处理数据包（POSTROUTING）
+> + 在进行路由选择前处理数据包（**PREROUTING**）
+> + 处理流入的数据包（**INPUT**）
+> + 处理流出的数据包（**OUTPUT**）
+> + 处理转发的数据包（**FORWARD**）
+> + 在进行路由选择后处理数据包（**POSTROUTING**）
 
 处理数据包的动作：
 
@@ -1186,4 +1186,174 @@ mdadm --zero-superblock /dev/sda	#删除raid信息
 | -j 目标     | 指定要跳转的目标                              |
 | --dport num | 匹配目标端口号                                |
 | --sport num | 匹配来源端口号                                |
+
+iptables修改后，默认下次重启后失效。需要保存后以便永久生效
+
+```shell
+iptables-save
+```
+
+
+
+将INPUT规则链的默认策略设置为拒绝：
+
+```shell
+iptable	-P INPUT DROP
+```
+
+向INPUT链中添加允许ICMP流量进入的策略规则：
+
+```shell
+iptables -I	INPUT -p icmp -j ACCEPT
+```
+
+删除INPUT规则链中允许ICMP流量，并把默认策略设置为允许：
+
+```shell
+iptables -D INPUT 1		#删除第一条规则
+iptables -P INPUT ACCEPT		#设置INPUT规则为ACCEPT
+```
+
+将INPUT规则链设置为只允许指定网段(192.168.0/24)的主机访问本机的22端口，拒绝来自其他所有主机的流量：
+
+```shell
+iptables -I INPUT -s 192.168.0/24	-p tcp --dport 22 -j ACCEPT		#设置允许指定网段
+iptables -A INPUT -p tcp --dport 22 -j REJECT		#规则链末端加入拒绝流量
+```
+
+向INPUT规则链中加入拒绝所有人访问本机12345端口的策略规则：
+
+```shell
+iptables -I INPUT -p tcp --dport 12345 -j REJECT		#拒绝tcp协议访问本机12345端口
+iptables -I INPUT -p udp --dport 12345 -j REJRCT		#拒绝udp协议访问本机12345端口
+```
+
+向INPUT规则链中添加拒绝192.168.10.5主机访问本机80端口的策略规则：
+
+```shell
+iptables -I INPUT -s 192.168.10.5 -p tcp --dport 80 -j REJECT
+```
+
+向INPUT规则链中添加拒绝所有主机访问本机1000~1024端口的策略规则：
+
+```shell
+iptables -A INPUT -p tcp --dport 1000:1024 -j REJECT
+iptables -A INPUT -p udp --dport 1000:1024 -j REJECT
+```
+
+
+
+#### Firewalld
+
+Firewalld有CLI（命令行界面）和GUI（图形用户界面）管理方式
+
+Firewalld支持动态更新技术并加入了区域（zone）。区域是firewalld预先准备的几套防火墙策略集合，用户可以根据生产环境的不同而选择合适的策略集合，从而实现防火墙策略之间的快速切换。
+
+| 区域     | 默认规则链                                                   |
+| -------- | ------------------------------------------------------------ |
+| trusted  | 允许所有的数据包                                             |
+| home     | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、mdns、ipp-client、amba-client、dhcp6-client服务相关，则允许流入 |
+| internal | 等同于home区域                                               |
+| work     | 拒绝流入的流量，除非有流出的流量相关；而如果流量与ssh、ipp-client、ipv6-client服务相关，则允许流入 |
+| public   | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、dhcpv6-client服务相关，则允许流入 |
+| external | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
+| dmz      | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
+| block    | 拒绝流入的流量，除非与流入的流量相关                         |
+| drop     | 拒绝流入的流量，除非与流入的流量相关                         |
+
+
+
+Firewall-cmd 命令参数
+
+| --get-dfault-zone             | 查询默认的区域名称 |
+| ----------------------------- | ---- |
+| --set-default-zone=<区域名称> | 设置默认的区域，使其永久生效 |
+| --get-zones                   | 显示可用的区域 |
+| --get-services                | 显示预先定义的服务 |
+| --get-active-zones            | 显示当前正在使用的区域与网卡名称 |
+| --add-source=                 | 将源自此IP或子网的流量导向指定的区域 |
+| --remove-source=              | 不再将源自此IP或子网的流量导向某个指定区域 |
+| --add-interface=<网卡名称>    | 将源自该网卡的所有流量都导向某个指定区域 |
+| --change-interface=<网卡名称> | 将某个网卡与区域进行关联 |
+| --list-all                    | 显示当前区域的网卡配置参数、资源、端口以及服务等信息 |
+|	--list-all-zones	|显示所有区域的网卡配置参数、资源、端口以及服务等信息|
+| --add-service=<服务名> |设置默认区域允许该服务的流量|
+| --add-port=<端口号/协议> |设置默认区域允许该端口的流量|
+| --remove-service=<服务名> |设置默认区域不再允许该服务的流量|
+| --remove-port=<端口号/协议> |设置默认区域不再允许该端口的流量|
+| --reload |让“永久生效”的配置规则立即生效，并覆盖当前的配置规则|
+| --panic-on |开启应急状况模式|
+| --panic-off |关闭应急状况模式|
+
+查看firewalld服务当前所使用的区域
+
+```shell
+firewall-cmd --get-default-zone
+```
+
+查询网卡ens160所在firewalld服务中的区域
+
+```shell
+firewall-cmd --get-zone-of-interface=ens160
+```
+
+把firewalld服务中的ens160网卡的默认区域设置为external，并在系统重启后生效
+
+```shell
+firewall-cmd --permanent --zone=external --change-interface=ens160
+firewall-cmd --get-zone-of-interface=ens160	#查看ens160网卡默认区域
+```
+
+把firewalld服务的当前默认区域设置为public
+
+```shell
+firewall-cmd --set-default-zone=public
+firewall-cmd --get-default-zone	#查看当前默认区域
+```
+
+启动/关闭firewalld防火墙服务的应急状况模式，阻断一切网络连接（当远程控制时谨慎使用）
+
+```shell
+firewall-cmd --panic-on
+firewall-cmd --panic-off
+```
+
+查询public区域是否允许请求SSH和HTTPS协议的流量
+
+```shell
+firewall-cmd --zone=public --query-service=ssh
+firewall-cmd --zone=public --query-service=https
+```
+
+把firewalld服务中请求的HTTPS协议流量设置为永久允许，并立即生效
+
+```shell
+firewall-cmd --zone=public --add-service=https	#设置为运行时
+firewall-cmd --permanent --zone=public --add-service=https	#设置为永久
+```
+
+把在firewalld服务中访问8080和8081端口的流量策略设置为允许，但仅限当前生效
+
+```shell
+firewalld-cmd --zone=public --add-port=8080-8081/tcp	#设置8080到80801端口
+firewall-cmd --zone=public --list-ports	#查看
+```
+
+把原本访问本机888端口的流量转发到22端口，要求当前和长期均有效
+
+> Firewall-cmd --permanent --zone=<区域> --add-forward-port=port=<源端口号>:proto=<协议>:toprot=<目标端口号>:toaddr=<目标IP地址>
+
+```shell
+firewall-cmd --permanent --zone=public --add-forward-port=port=888:proto=tcp:toport=22:toaddr=192.168.10.10
+```
+
+
+
+
+
+
+
+
+
+
 
