@@ -1249,17 +1249,21 @@ Firewalld有CLI（命令行界面）和GUI（图形用户界面）管理方式
 
 Firewalld支持动态更新技术并加入了区域（zone）。区域是firewalld预先准备的几套防火墙策略集合，用户可以根据生产环境的不同而选择合适的策略集合，从而实现防火墙策略之间的快速切换。
 
-| 区域     | 默认规则链                                                   |
-| -------- | ------------------------------------------------------------ |
-| trusted  | 允许所有的数据包                                             |
-| home     | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、mdns、ipp-client、amba-client、dhcp6-client服务相关，则允许流入 |
-| internal | 等同于home区域                                               |
-| work     | 拒绝流入的流量，除非有流出的流量相关；而如果流量与ssh、ipp-client、ipv6-client服务相关，则允许流入 |
-| public   | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、dhcpv6-client服务相关，则允许流入 |
-| external | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
-| dmz      | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
-| block    | 拒绝流入的流量，除非与流入的流量相关                         |
-| drop     | 拒绝流入的流量，除非与流入的流量相关                         |
+RUNTIME立即生效，重启后失效。默认配置下是此模式
+
+PRTMANENT当前不生效，重启后生效
+
+| 区域                     | 默认规则链                                                   |
+| ------------------------ | ------------------------------------------------------------ |
+| trusted                  | 允许所有的数据包                                             |
+| home                     | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、mdns、ipp-client、amba-client、dhcp6-client服务相关，则允许流入 |
+| internal                 | 等同于home区域                                               |
+| work                     | 拒绝流入的流量，除非有流出的流量相关；而如果流量与ssh、ipp-client、ipv6-client服务相关，则允许流入 |
+| **public**(当前生效区域) | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh、dhcpv6-client服务相关，则允许流入 |
+| external                 | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
+| dmz                      | 拒绝流入的流量，除非与流出的流量相关；而如果流量与ssh服务相关，则允许流入 |
+| block                    | 拒绝流入的流量，除非与流入的流量相关                         |
+| drop                     | 拒绝流入的流量，除非与流入的流量相关                         |
 
 
 
@@ -1341,7 +1345,7 @@ firewall-cmd --zone=public --list-ports	#查看
 
 把原本访问本机888端口的流量转发到22端口，要求当前和长期均有效
 
-> Firewall-cmd --permanent --zone=<区域> --add-forward-port=port=<源端口号>:proto=<协议>:toprot=<目标端口号>:toaddr=<目标IP地址>
+> Firewall-cmd --permanent --zone=<区域> --add-forward-port=port=<源端口号>:proto=<协议>:toport=<目标端口号>:toaddr=<目标IP地址>
 
 ```shell
 firewall-cmd --permanent --zone=public --add-forward-port=port=888:proto=tcp:toport=22:toaddr=192.168.10.10
@@ -1349,7 +1353,11 @@ firewall-cmd --permanent --zone=public --add-forward-port=port=888:proto=tcp:top
 
 
 
+服务的访问控制列表（tcp Wrappers）**RHEL8弃用**
 
+/etc/hosts.allow	允许
+
+/etc/hosts.deny	拒绝
 
 
 
